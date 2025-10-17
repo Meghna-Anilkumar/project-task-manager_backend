@@ -25,7 +25,7 @@ app.use(morgan('dev'));
 app.use(cookieParser());
 
 app.use('/api/projects', projectRoutes);
-app.use('/api/projects', taskRoutes);
+app.use('/api', taskRoutes);
 app.use('/api/ai', aiRoutes);
 
 export default app;
