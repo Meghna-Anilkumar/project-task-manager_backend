@@ -5,29 +5,47 @@ import { getGeminiModel } from '../config/gemini';
 import { HttpStatus } from '../utils/Enums';
 
 export class AIController {
-  // Summarize all tasks in a project
   async summarizeProject(req: Request, res: Response): Promise<void> {
     try {
       const { projectId } = req.params;
+      console.log(`[Summarize] Processing projectId: ${projectId}`);
 
-      const project = await Project.findById(projectId);
-      if (!project) {
-        res.status(HttpStatus.NOT_FOUND).json({
-          success: false,
-          message: 'Project not found'
-        });
-        return;
-      }
-
-      const tasks = await Task.find({ projectId });
-      if (tasks.length === 0) {
+      // Validate projectId
+      if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+        console.log(`[Summarize] Invalid projectId format: ${projectId}`);
         res.status(HttpStatus.BAD_REQUEST).json({
           success: false,
-          message: 'No tasks found for this project'
+          message: 'Invalid project ID format',
         });
         return;
       }
 
+      // Fetch project
+      console.log(`[Summarize] Fetching project: ${projectId}`);
+      const project = await Project.findById(projectId);
+      if (!project) {
+        console.log(`[Summarize] Project not found: ${projectId}`);
+        res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: 'Project not found',
+        });
+        return;
+      }
+
+      // Fetch tasks
+      console.log(`[Summarize] Fetching tasks for project: ${projectId}`);
+      const tasks = await Task.find({ projectId });
+      if (tasks.length === 0) {
+        console.log(`[Summarize] No tasks found for project: ${projectId}`);
+        res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'No tasks found for this project',
+        });
+        return;
+      }
+
+      // Construct task list
+      console.log(`[Summarize] Found ${tasks.length} tasks`);
       const tasksList = tasks
         .map(
           (task, index) =>
@@ -35,59 +53,90 @@ export class AIController {
         )
         .join('\n');
 
+      // Generate summary with Gemini
+      console.log(`[Summarize] Generating summary for project: ${project.name}`);
       const model = getGeminiModel();
       const prompt = `Summarize the following project tasks in a concise way. Project name: "${project.name}":\n\n${tasksList}\n\nProvide a brief overview of the project status, what's completed, in progress, and pending.`;
 
+      console.log(`[Summarize] Sending prompt to Gemini API`);
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const summary = response.text();
 
+      console.log(`[Summarize] Summary generated successfully for project: ${projectId}`);
       res.status(HttpStatus.OK).json({
         success: true,
         data: { summary },
-        message: 'Project summary generated successfully'
+        message: 'Project summary generated successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error(`[Summarize] Error for project ${req.params.projectId}:`, error);
+      const errorMessage =
+        error.message.includes('API_KEY_INVALID')
+          ? 'Invalid Gemini API key. Please contact the administrator.'
+          : error.message.includes('Missing or invalid GEMINI_API_KEY')
+          ? 'Gemini API key is missing or invalid.'
+          : error.message.includes('is not found for API version')
+          ? 'Gemini model not available. Test available models with GET /api/test-gemini-model or check Google AI Studio for supported models.'
+          : 'Error generating summary: ' + error.message;
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: 'Error generating summary',
-        error: (error as Error).message
+        message: errorMessage,
+        error: error.message,
       });
     }
   }
 
-  // Answer questions about project tasks
   async askQuestion(req: Request, res: Response): Promise<void> {
     try {
-      const { projectId } = req.params;
-      const { question } = req.body;
+      const { taskId, question } = req.body;
+      console.log(`[QA] Processing taskId: ${taskId}, question: ${question}`);
 
+      // Validate input
       if (!question || question.trim() === '') {
+        console.log(`[QA] Question is empty`);
         res.status(HttpStatus.BAD_REQUEST).json({
           success: false,
-          message: 'Question is required'
+          message: 'Question is required',
+        });
+        return;
+      }
+      if (!taskId.match(/^[0-9a-fA-F]{24}$/)) {
+        console.log(`[QA] Invalid taskId format: ${taskId}`);
+        res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Invalid task ID format',
         });
         return;
       }
 
-      const project = await Project.findById(projectId);
-      if (!project) {
+      // Fetch task
+      console.log(`[QA] Fetching task: ${taskId}`);
+      const task = await Task.findById(taskId);
+      if (!task) {
+        console.log(`[QA] Task not found: ${taskId}`);
         res.status(HttpStatus.NOT_FOUND).json({
           success: false,
-          message: 'Project not found'
+          message: 'Task not found',
         });
         return;
       }
 
-      const tasks = await Task.find({ projectId });
-      if (tasks.length === 0) {
-        res.status(HttpStatus.BAD_REQUEST).json({
+      // Fetch project
+      console.log(`[QA] Fetching project for task: ${taskId}`);
+      const project = await Project.findById(task.projectId);
+      if (!project) {
+        console.log(`[QA] Project not found for task: ${taskId}`);
+        res.status(HttpStatus.NOT_FOUND).json({
           success: false,
-          message: 'No tasks found for this project'
+          message: 'Project not found',
         });
         return;
       }
 
+      // Fetch tasks for context
+      console.log(`[QA] Fetching tasks for project: ${task.projectId}`);
+      const tasks = await Task.find({ projectId: task.projectId });
       const tasksList = tasks
         .map(
           (task, index) =>
@@ -95,74 +144,36 @@ export class AIController {
         )
         .join('\n');
 
+      // Generate answer with Gemini
+      console.log(`[QA] Generating answer for task: ${task.title}`);
       const model = getGeminiModel();
-      const prompt = `Based on these project tasks for "${project.name}":\n\n${tasksList}\n\nAnswer this question: ${question}`;
+      const prompt = `Based on these project tasks for "${project.name}":\n\n${tasksList}\n\nAnswer this question about task "${task.title}": ${question}`;
 
+      console.log(`[QA] Sending prompt to Gemini API`);
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const answer = response.text();
 
+      console.log(`[QA] Answer generated successfully for task: ${taskId}`);
       res.status(HttpStatus.OK).json({
         success: true,
         data: { answer, question },
-        message: 'Answer generated successfully'
+        message: 'Answer generated successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error(`[QA] Error for task ${req.body.taskId}:`, error);
+      const errorMessage =
+        error.message.includes('API_KEY_INVALID')
+          ? 'Invalid Gemini API key. Please contact the administrator.'
+          : error.message.includes('Missing or invalid GEMINI_API_KEY')
+          ? 'Gemini API key is missing or invalid.'
+          : error.message.includes('is not found for API version')
+          ? 'Gemini model not available. Test available models with GET /api/test-gemini-model or check Google AI Studio for supported models.'
+          : 'Error answering question: ' + error.message;
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: 'Error answering question',
-        error: (error as Error).message
-      });
-    }
-  }
-
-  // Get AI suggestions for task priorities
-  async getTaskSuggestions(req: Request, res: Response): Promise<void> {
-    try {
-      const { projectId } = req.params;
-
-      const project = await Project.findById(projectId);
-      if (!project) {
-        res.status(HttpStatus.NOT_FOUND).json({
-          success: false,
-          message: 'Project not found'
-        });
-        return;
-      }
-
-      const tasks = await Task.find({ projectId });
-      if (tasks.length === 0) {
-        res.status(HttpStatus.BAD_REQUEST).json({
-          success: false,
-          message: 'No tasks found for this project'
-        });
-        return;
-      }
-
-      const tasksList = tasks
-        .map(
-          (task, index) =>
-            `${index + 1}. [${task.status.toUpperCase()}] ${task.title}: ${task.description}`
-        )
-        .join('\n');
-
-      const model = getGeminiModel();
-      const prompt = `Analyze these project tasks and provide suggestions for prioritization and task management:\n\n${tasksList}\n\nProvide actionable suggestions for improving workflow and task priorities.`;
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const suggestions = response.text();
-
-      res.status(HttpStatus.OK).json({
-        success: true,
-        data: { suggestions },
-        message: 'Suggestions generated successfully'
-      });
-    } catch (error) {
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: 'Error generating suggestions',
-        error: (error as Error).message
+        message: errorMessage,
+        error: error.message,
       });
     }
   }
