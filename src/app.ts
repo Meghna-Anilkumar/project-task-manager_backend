@@ -2,7 +2,9 @@ import express, { Application } from 'express';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import routes from './router/routes';
+import projectRoutes from './routes/projectRoutes';
+import taskRoutes from './routes/taskRoutes';
+import aiRoutes from './routes/aiRoutes';
 import cookieParser from 'cookie-parser'
 
 dotenv.config();
@@ -22,6 +24,8 @@ app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(morgan('dev'));
 app.use(cookieParser());
 
-app.use('/api', routes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/projects', taskRoutes);
+app.use('/api/ai', aiRoutes);
 
 export default app;
