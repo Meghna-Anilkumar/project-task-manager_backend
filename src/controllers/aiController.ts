@@ -8,23 +8,20 @@ export class AIController {
   async summarizeProject(req: Request, res: Response): Promise<void> {
     try {
       const { projectId } = req.params;
-      console.log(`[Summarize] Processing projectId: ${projectId}`);
+      console.log(`Processing projectId: ${projectId}`);
 
-      // Validate projectId
       if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
-        console.log(`[Summarize] Invalid projectId format: ${projectId}`);
+        console.log(`Invalid projectId format: ${projectId}`);
         res.status(HttpStatus.BAD_REQUEST).json({
           success: false,
           message: 'Invalid project ID format',
         });
         return;
       }
-
-      // Fetch project
-      console.log(`[Summarize] Fetching project: ${projectId}`);
+      console.log(`Fetching project: ${projectId}`);
       const project = await Project.findById(projectId);
       if (!project) {
-        console.log(`[Summarize] Project not found: ${projectId}`);
+        console.log(`Project not found: ${projectId}`);
         res.status(HttpStatus.NOT_FOUND).json({
           success: false,
           message: 'Project not found',
@@ -32,8 +29,8 @@ export class AIController {
         return;
       }
 
-      // Fetch tasks
-      console.log(`[Summarize] Fetching tasks for project: ${projectId}`);
+     
+      console.log(`Fetching tasks for project: ${projectId}`);
       const tasks = await Task.find({ projectId });
       if (tasks.length === 0) {
         console.log(`[Summarize] No tasks found for project: ${projectId}`);
@@ -44,8 +41,7 @@ export class AIController {
         return;
       }
 
-      // Construct task list
-      console.log(`[Summarize] Found ${tasks.length} tasks`);
+      console.log(`Found ${tasks.length} tasks`);
       const tasksList = tasks
         .map(
           (task, index) =>
@@ -53,8 +49,7 @@ export class AIController {
         )
         .join('\n');
 
-      // Generate summary with Gemini
-      console.log(`[Summarize] Generating summary for project: ${project.name}`);
+      console.log(`Generating summary for project: ${project.name}`);
       const model = getGeminiModel();
       const prompt = `Summarize the following project tasks in a concise way. Project name: "${project.name}":\n\n${tasksList}\n\nProvide a brief overview of the project status, what's completed, in progress, and pending.`;
 
@@ -144,24 +139,23 @@ export class AIController {
         )
         .join('\n');
 
-      // Generate answer with Gemini
-      console.log(`[QA] Generating answer for task: ${task.title}`);
+      console.log(`Generating answer for task: ${task.title}`);
       const model = getGeminiModel();
       const prompt = `Based on these project tasks for "${project.name}":\n\n${tasksList}\n\nAnswer this question about task "${task.title}": ${question}`;
 
-      console.log(`[QA] Sending prompt to Gemini API`);
+      console.log(`Sending prompt to Gemini API`);
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const answer = response.text();
 
-      console.log(`[QA] Answer generated successfully for task: ${taskId}`);
+      console.log(`Answer generated successfully for task: ${taskId}`);
       res.status(HttpStatus.OK).json({
         success: true,
         data: { answer, question },
         message: 'Answer generated successfully',
       });
     } catch (error: any) {
-      console.error(`[QA] Error for task ${req.body.taskId}:`, error);
+      console.error(`Error for task ${req.body.taskId}:`, error);
       const errorMessage =
         error.message.includes('API_KEY_INVALID')
           ? 'Invalid Gemini API key. Please contact the administrator.'

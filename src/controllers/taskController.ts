@@ -5,7 +5,7 @@ import { HttpStatus } from '../utils/Enums';
 export class TaskController {
   async getTasksByProject(req: Request, res: Response): Promise<void> {
     try {
-      const { projectId } = req.params; // Changed from req.query to req.params
+      const { projectId } = req.params;
       if (!projectId) {
         res.status(HttpStatus.BAD_REQUEST).json({
           success: false,
@@ -30,7 +30,7 @@ export class TaskController {
 
   async createTask(req: Request, res: Response): Promise<void> {
     try {
-      const { projectId } = req.params; // Changed to req.params
+      const { projectId } = req.params; 
       const { title, description, status } = req.body;
       if (!title || !description || !status || !projectId) {
         res.status(HttpStatus.BAD_REQUEST).json({
