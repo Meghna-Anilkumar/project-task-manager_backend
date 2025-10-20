@@ -29,7 +29,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api', taskRoutes);
 app.use('/api/ai', aiRoutes);
 
-// Debug route to verify server
+
 app.get('/', (req, res) => {
   res.json({ message: 'API Server running on port 5000' });
 });
